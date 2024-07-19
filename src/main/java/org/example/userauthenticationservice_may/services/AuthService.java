@@ -1,10 +1,14 @@
 package org.example.userauthenticationservice_may.services;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.MacAlgorithm;
 import org.antlr.v4.runtime.misc.Pair;
+import org.example.userauthenticationservice_may.clients.KafkaProducerClient;
+import org.example.userauthenticationservice_may.dtos.MessageDto;
 import org.example.userauthenticationservice_may.models.Role;
 import org.example.userauthenticationservice_may.models.Session;
 import org.example.userauthenticationservice_may.models.SessionStatus;
@@ -36,12 +40,18 @@ public class AuthService implements IAuthService {
 
     private RoleRepository roleRepository;
 
-    public AuthService(UserRepository userRepository,BCryptPasswordEncoder bCryptPasswordEncoder,SessionRepository sessionRepository,SecretKey secretKey, RoleRepository roleRepository) {
+    private KafkaProducerClient kafkaProducerClient;
+
+    private ObjectMapper objectMapper;
+
+    public AuthService(UserRepository userRepository,BCryptPasswordEncoder bCryptPasswordEncoder,SessionRepository sessionRepository,SecretKey secretKey, RoleRepository roleRepository, KafkaProducerClient kafkaProducerClient, ObjectMapper objectMapper) {
         this.userRepository = userRepository;
         this.bCryptPasswordEncoder = bCryptPasswordEncoder;
         this.sessionRepository = sessionRepository;
         this.secretKey = secretKey;
         this.roleRepository = roleRepository;
+        this.kafkaProducerClient = kafkaProducerClient;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -68,7 +78,17 @@ public class AuthService implements IAuthService {
             }
          user.setRoles(roleList);
          userRepository.save(user);
-
+        MessageDto messageDto = new MessageDto();
+        messageDto.setTo(email);
+        messageDto.setFrom("vibhassrinet@gmail.com");
+        messageDto.setSubject("Welcome to the platform");
+        messageDto.setBody("Hope you liked the platform");
+        try{
+            kafkaProducerClient.sendMessage("signup",objectMapper.writeValueAsString(messageDto));
+        } catch ( JsonProcessingException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
          return user;
     }
 
